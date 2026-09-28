@@ -1,6 +1,8 @@
 # Публикация в npm при выпуске релиза на GitHub через доверенную публикацию npm (Trusted Publishing, OIDC):
 # токен не хранится, npm проверяет, что сборка идет из этого репозитория и этого файла, и ставит подпись provenance.
 # На npmjs.com у пакета skillfoxx: Settings, Trusted Publisher, GitHub Actions, репозиторий и файл publish.yml.
+# Публикация поэтапная (npm stage publish): версия попадает в очередь, владелец подтверждает ее на npmjs.com
+# своей двухфакторной защитой. Прямую публикацию без подтверждения npm ограничивает с 2027 года.
 name: publish
 on:
   release:
@@ -22,4 +24,4 @@ jobs:
       - run: npm install --no-audit --no-fund
       - run: node build.mjs
       - run: node dist/cli.js --version
-      - run: npm publish --provenance --access public
+      - run: npm stage publish --provenance --access public
