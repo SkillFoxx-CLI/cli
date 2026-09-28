@@ -1,0 +1,49 @@
+{
+  "name": "skillfoxx",
+  "version": "0.1.2",
+  "description": "Установка скиллов, MCP-серверов и CLI из каталога SkillFoxx в Claude Code, Cursor, Codex и другие агенты",
+  "type": "module",
+  "bin": {
+    "skillfoxx": "dist/cli.js"
+  },
+  "files": [
+    "dist/cli.js",
+    "dist/THIRD_PARTY_LICENSES.txt",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.18"
+  },
+  "license": "MIT",
+  "homepage": "https://skillfoxx.ru/developers",
+  "keywords": [
+    "mcp",
+    "skills",
+    "claude-code",
+    "cursor",
+    "codex",
+    "ai-agents",
+    "installer"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "smoke": "bash scripts/smoke.sh",
+    "prepublishOnly": "node build.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SkillFoxx-CLI/cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/SkillFoxx-CLI/cli/issues"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.12",
+    "jsonc-parser": "3.3.1",
+    "smol-toml": "1.9.0",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  }
+}
