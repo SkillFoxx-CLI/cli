@@ -1,4 +1,6 @@
-# Публикация в npm при выпуске релиза на GitHub. provenance связывает пакет с этим репозиторием и сборкой.
+# Публикация в npm при выпуске релиза на GitHub через доверенную публикацию npm (Trusted Publishing, OIDC):
+# токен не хранится, npm проверяет, что сборка идет из этого репозитория и этого файла, и ставит подпись provenance.
+# На npmjs.com у пакета skillfoxx: Settings, Trusted Publisher, GitHub Actions, репозиторий и файл publish.yml.
 name: publish
 on:
   release:
@@ -15,9 +17,9 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
+      # Доверенной публикации нужен npm не ниже 11.5.1.
+      - run: npm install -g npm@latest
       - run: npm install --no-audit --no-fund
       - run: node build.mjs
       - run: node dist/cli.js --version
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
