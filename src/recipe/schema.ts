@@ -119,6 +119,52 @@ const component = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('rules'), format: z.enum(['agents-md', 'cursor-mdc']), path: z.string().max(300).refine(noPathTraversal, 'путь не должен выходить за пределы репозитория') }),
 ])
 
+/**
+ * Раскрытия: что инструмент сам отправляет автору (телеметрия) и как это выключить. Показываются в плане
+ * установки на карточке и в CLI до подтверждения.
+ *
+ * Совместимость: CLI 0.3.x разбирает рецепт этой же схемой без поля disclosures, а z.object по умолчанию
+ * молча отбрасывает незнакомые ключи, поэтому старый CLI рецепт с раскрытиями принимает и просто их не
+ * показывает. Подпись идет поверх сырых байтов ответа и покрывает поле у любых версий CLI, хеш рецепта
+ * (canonicalHash) считается по разобранному рецепту вместе с раскрытиями.
+ *
+ * Незнакомый вид раскрытия отбрасывается до проверки, а не ломает рецепт: иначе новый вид, добавленный
+ * позже, заставил бы CLI 0.4 отвергнуть весь рецепт так же, как строгая схема сломала бы 0.3.
+ */
+export const DISCLOSURE_KINDS = ['telemetry'] as const
+
+// Переменная отключения попадает в env сервера в конфиге агента. Чтобы через нее нельзя было подсунуть
+// NODE_OPTIONS, PATH или LD_PRELOAD, имя обязано быть про телеметрию, а значение простым флагом.
+const OPT_OUT_NAME = /^[A-Z][A-Z0-9_]{1,63}$/
+const OPT_OUT_TOPIC = /TELEMETRY|TRACK|ANALYTICS|METRICS|STATS|USAGE|OPT_?OUT|REPORTING|DIAGNOSTIC/
+export const OPT_OUT_VALUE = /^[A-Za-z0-9._-]{1,32}$/
+export const isOptOutEnvName = (value: string): boolean => OPT_OUT_NAME.test(value) && OPT_OUT_TOPIC.test(value)
+
+// Одна строка без управляющих символов: текст печатается в терминале и встает в разметку карточки.
+const disclosureText = z
+  .string()
+  .min(1)
+  .max(200)
+  .refine((text) => !/[\u0000-\u001f\u007f-\u009f]/.test(text), 'текст раскрытия должен быть одной строкой')
+
+const disclosure = z.object({
+  kind: z.literal('telemetry'),
+  text: z.object({ ru: disclosureText, en: disclosureText }),
+  optOut: z
+    .object({
+      env: z.string().refine(isOptOutEnvName, 'переменная отключения должна называть телеметрию (TELEMETRY, TRACK, ANALYTICS и т.п.)'),
+      value: z.string().regex(OPT_OUT_VALUE),
+    })
+    .optional(),
+  // Имя MCP-компонента, к которому относится раскрытие; без него раскрытие про весь рецепт.
+  component: name.optional(),
+})
+
+const knownDisclosures = (value: unknown): unknown =>
+  Array.isArray(value)
+    ? value.filter((item) => item && typeof item === 'object' && (DISCLOSURE_KINDS as readonly string[]).includes((item as { kind?: unknown }).kind as string))
+    : value
+
 export const RecipeSchema = z.object({
   schema: z.literal(1),
   source: z.discriminatedUnion('kind', [
@@ -151,10 +197,12 @@ export const RecipeSchema = z.object({
       notes: z.string().max(300).optional(),
     })
     .optional(),
+  disclosures: z.preprocess(knownDisclosures, z.array(disclosure).max(5)).optional(),
 })
 
 export type InstallRecipe = z.infer<typeof RecipeSchema>
 export type RecipeComponent = InstallRecipe['components'][number]
+export type Disclosure = NonNullable<InstallRecipe['disclosures']>[number]
 export type EnvVar = z.infer<typeof envVar>
 export type Header = z.infer<typeof header>
 
@@ -190,6 +238,11 @@ export const findSecrets = (recipe: unknown): string[] => {
 export const parseRecipe = (input: unknown): { ok: true; recipe: InstallRecipe } | { ok: false; errors: string[] } => {
   const parsed = RecipeSchema.safeParse(input)
   if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`) }
+  // Раскрытие про конкретный компонент ссылается на MCP-сервер этого же рецепта. Проверка здесь, а не
+  // refine схемы: у объекта с refine в zod 4 нет omit и pick, а ими пользуются тесты совместимости.
+  const mcpNames = new Set(parsed.data.components.flatMap((c) => (c.kind === 'mcp-stdio' || c.kind === 'mcp-http' ? [c.name] : [])))
+  const stray = (parsed.data.disclosures ?? []).findIndex((d) => d.component !== undefined && !mcpNames.has(d.component))
+  if (stray >= 0) return { ok: false, errors: [`disclosures.${stray}.component: в рецепте нет MCP-сервера с таким именем`] }
   const secrets = findSecrets(parsed.data)
   if (secrets.length) return { ok: false, errors: [`похоже на секрет: ${secrets.length} знач.`] }
   return { ok: true, recipe: parsed.data }

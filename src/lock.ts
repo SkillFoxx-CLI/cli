@@ -33,6 +33,10 @@ export type LockEntry = {
   // Необязательное поле: у lock-записей, поставленных до этой версии CLI, его нет, и doctor тогда
   // просто не проверяет переменные окружения записи (до первого add/update, который его допишет).
   vars?: LockVar[]
+  // Выбор по телеметрии инструмента (см. disclosures.ts): off, переменная отключения записана в конфиг
+  // сервера; on, отправка оставлена. Есть только у записей, чей рецепт называет переменную отключения;
+  // update повторяет выбор без вопроса. CLI 0.3 этого поля не знает и не проверяет.
+  telemetry?: 'off' | 'on'
   installedAt: string
   updatedAt: string
   cliVersion: string
@@ -129,6 +133,7 @@ export const entryOk = (scope: Scope, key: string, e: unknown): boolean => {
     Array.isArray(e.agents) && e.agents.every(isAgent) &&
     Array.isArray(e.items) && e.items.every((i) => itemOk(scope, i)) &&
     (e.vars === undefined || (Array.isArray(e.vars) && e.vars.every(varOk))) &&
+    (e.telemetry === undefined || e.telemetry === 'off' || e.telemetry === 'on') &&
     isStr(e.installedAt) && isStr(e.updatedAt) && isStr(e.cliVersion)
   )
 }

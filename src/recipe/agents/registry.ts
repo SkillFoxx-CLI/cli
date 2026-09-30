@@ -53,8 +53,12 @@ export const AGENTS: readonly AgentSpec[] = [
   // сверено 2026-09-24: https://zed.dev/docs/ai/mcp: context_servers, локальный {command,args,env},
   // удаленный {url,headers} подтверждены; отдельного формата SSE в документации нет, поэтому sse: false.
   { id: 'zed', label: 'Zed', siteSlug: 'zed', mcp: { stdio: true, http: true, sse: false }, skillsDir: '.agents/skills', skillsCli: null, plugin: false, rules: [] },
-  { id: 'sourcecraft', label: 'SourceCraft', siteSlug: 'sourcecraft', mcp: { stdio: true, http: false, sse: false }, skillsDir: null, skillsCli: null, plugin: false, rules: [] },
-  { id: 'coddy', label: 'Coddy', siteSlug: 'coddy', mcp: null, skillsDir: '.agents/skills', skillsCli: null, plugin: false, rules: [] },
+  // сверено 2026-09-30: sourcecraft.dev, Code Assistant, agent skills: проектные скиллы в .codeassistant/skills
+  // (пользовательские ~/.codeassistant/skills), общую .agents/skills агент тоже читает.
+  { id: 'sourcecraft', label: 'SourceCraft', siteSlug: 'sourcecraft', mcp: { stdio: true, http: false, sse: false }, skillsDir: '.codeassistant/skills', skillsCli: null, plugin: false, rules: [] },
+  // сверено 2026-09-30: github.com/coddy-project/coddy-agent: проектные скиллы только из .coddy/skills,
+  // проектную .agents/skills Coddy не читает (пользовательскую ~/.agents/skills читает).
+  { id: 'coddy', label: 'Coddy', siteSlug: 'coddy', mcp: null, skillsDir: '.coddy/skills', skillsCli: null, plugin: false, rules: [] },
 ]
 
 export const agentById = (id: string): AgentSpec | undefined => AGENTS.find((agent) => agent.id === id)

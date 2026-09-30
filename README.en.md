@@ -20,13 +20,15 @@ Requires Node.js 18.18 or newer.
 | `search <query>` | searches the catalog |
 | `connect <agent>` | connects Claude Code, Codex, opencode or Cursor to SkillFoxx API: checks the key on the gateway and writes the address into the agent settings. The key comes from `SKILLFOXX_API_KEY` or a hidden prompt |
 
-Options: `--agent claude-code,cursor` (or `all`), `--project`, `--global`, `-y`/`--yes`, `--force`, `--dry-run`, `--json`, `--lang ru|en`.
+Options: `--agent claude-code,cursor` (or `all`), `--project`, `--global`, `-y`/`--yes`, `--force`, `--dry-run`, `--json`, `--allow-telemetry`, `--lang ru|en`.
 
 ## Agents
 
 Claude Code, Cursor, VS Code, Codex, Gemini CLI, Devin, Cline, Zoo Code, OpenCode, Zed, Goose, Amp, Hermes Agent, SourceCraft, Coddy.
 
 Hermes Agent: MCP servers go to `config.yaml` in the Hermes folder (`~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows, or `HERMES_HOME`), so install them with `--global`. User skills land in `skills` in the same folder. Project skills live in `.agents/skills`, and Hermes loads them only after `hermes skills trust` in the project root.
+
+Skills are installed as one copy in `.agents/skills` (project) or `~/.agents/skills` (user), with links in the agent folders. Codex and Zed read user skills straight from `~/.agents/skills`, Coddy reads `.coddy/skills` in a project, SourceCraft reads `.codeassistant/skills` and `~/.codeassistant/skills`. Links in `~/.codex/skills` left by versions before 0.4 are cleaned up by `remove` and `update`.
 
 Without `--agent` the CLI picks the agent it runs inside, otherwise every agent found on the machine.
 
@@ -37,6 +39,7 @@ Without `--agent` the CLI picks the agent it runs inside, otherwise every agent 
 - High risk entries install only after explicit consent. With `--yes` the reasons are printed to stderr.
 - Entries with an open incident and entries removed from the catalog are refused.
 - Recipes built automatically and not yet checked by hand come with a warning.
+- When the author's README says the tool sends data back (telemetry), the plan shows what is sent. When the author names a variable that turns it off, the CLI offers to add it to the MCP server config before you confirm (yes by default, also with `--yes`). Keep sending on: `--allow-telemetry`. The choice is saved in the lock file and `update` repeats it.
 
 ## Configs and secrets
 

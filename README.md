@@ -20,13 +20,15 @@ npx skillfoxx add mcp/vv-mcp-server
 | `search <запрос>` | ищет в каталоге |
 | `connect <агент>` | подключает Claude Code, Codex, opencode или Cursor к SkillFoxx API: проверяет ключ на шлюзе и прописывает адрес в настройки агента. Ключ берется из `SKILLFOXX_API_KEY` или спрашивается скрыто |
 
-Параметры: `--agent claude-code,cursor` (или `all`), `--project`, `--global`, `-y`/`--yes`, `--force`, `--dry-run`, `--json`, `--lang ru|en`.
+Параметры: `--agent claude-code,cursor` (или `all`), `--project`, `--global`, `-y`/`--yes`, `--force`, `--dry-run`, `--json`, `--allow-telemetry`, `--lang ru|en`.
 
 ## Агенты
 
 Claude Code, Cursor, VS Code, Codex, Gemini CLI, Devin, Cline, Zoo Code, OpenCode, Zed, Goose, Amp, Hermes Agent, SourceCraft, Coddy.
 
 Hermes Agent: MCP-серверы пишутся в `config.yaml` в папке Hermes (`~/.hermes`, на Windows `%LOCALAPPDATA%\hermes`, либо `HERMES_HOME`; если выбран профиль через `hermes profile use`, то папка этого профиля), поэтому ставятся с `--global`. Скиллы для пользователя попадают в `skills` той же папки. Скиллы проекта лежат в `.agents/skills`, и Hermes загружает их только после `hermes skills trust` в корне проекта.
+
+Скиллы ставятся одной копией в `.agents/skills` (в проекте) или `~/.agents/skills` (для пользователя), в папки агентов идут ссылки. Codex и Zed читают пользовательские скиллы прямо из `~/.agents/skills`, Coddy в проекте читает `.coddy/skills`, SourceCraft `.codeassistant/skills` и `~/.codeassistant/skills`. Ссылки в `~/.codex/skills`, которые поставили версии до 0.4, `remove` и `update` убирают.
 
 Без `--agent` CLI берет агента, внутри которого запущен, иначе все найденные на машине.
 
@@ -37,6 +39,7 @@ Hermes Agent: MCP-серверы пишутся в `config.yaml` в папке H
 - Запись с высоким риском ставится только после явного согласия. С `--yes` причины печатаются в stderr.
 - Запись с открытым инцидентом и снятая из каталога не ставятся.
 - Рецепт, собранный автоматически и еще не проверенный вручную, помечается предупреждением.
+- Если в README автор пишет, что инструмент отправляет ему телеметрию, план показывает, что уходит. Когда автор называет переменную, которая это отключает, CLI до подтверждения предлагает добавить ее в конфиг MCP-сервера (по умолчанию да, с `--yes` тоже да). Оставить отправку: `--allow-telemetry`. Выбор запоминается в lock-файле, `update` его повторяет.
 
 ## Конфиги и секреты
 

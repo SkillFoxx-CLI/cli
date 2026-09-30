@@ -2,6 +2,7 @@ import { fetchRecipe } from '../api'
 import type { Command } from '../cli'
 import { CliError, tr, type Ctx } from '../context'
 import { chooseAgents } from '../detect'
+import { chooseTelemetry, disclosureLines, optOuts, withOptOut } from '../disclosures'
 import { checkRuntimes, gate, riskConsent } from '../gate'
 import { install, installEvents, mergeItems } from '../install'
 import { confirm, printJson } from '../io'
@@ -40,25 +41,31 @@ export const runAdd: Command = async (ctx, args, flags) => {
   const g = gate(ctx, body)
   if (!g.ok) throw new CliError(g.code, g.message)
   const b = body!
-  const recipe = b.recipe!
-  for (const w of [...g.warnings, ...(await checkRuntimes(ctx, recipe)), ...remoteAuthWarnings(ctx, recipe)]) ctx.err(w)
+  const original = b.recipe!
+  for (const w of [...g.warnings, ...(await checkRuntimes(ctx, original)), ...remoteAuthWarnings(ctx, original)]) ctx.err(w)
   await riskConsent(ctx, g, Boolean(flags.yes))
   const scope = await pickScope(ctx, flags)
   const root = await rootFor(ctx, scope)
   const agents = await chooseAgents(ctx, flags.agent)
-  const actions = await buildPlan(ctx, recipe, agents, scope, root)
+  const planned = await buildPlan(ctx, original, agents, scope, root)
   if (flags.dryRun && flags.json) {
-    printJson(ctx, { entry: key, scope, agents, actions: planJson(actions, root) })
+    printJson(ctx, { entry: key, scope, agents, actions: planJson(planned, root), disclosures: original.disclosures ?? [] })
     return 0
   }
   ctx.out(tr(ctx, `План установки ${key} (${scope === 'project' ? 'в проект' : 'для пользователя'}):`, `Install plan for ${key} (${scope === 'project' ? 'project' : 'user'}):`))
-  for (const line of describePlan(ctx, actions, root)) ctx.out(`  ${line}`)
+  for (const line of describePlan(ctx, planned, root)) ctx.out(`  ${line}`)
+  for (const line of disclosureLines(ctx, original)) ctx.out(line)
   if (flags.dryRun) return 0
-  if (!flags.yes && !(await confirm(ctx, tr(ctx, 'Установить?', 'Install?'), true))) return 1
 
   const lockFile = lockFileFor(ctx, scope, root)
   const lock = await readLock(lockFile, scope)
   const previous = lock.entries[key]
+  // Вопрос про телеметрию идет до подтверждения установки: ответ меняет то, что запишется в конфиг.
+  const offList = optOuts(original, planned)
+  const telemetry = await chooseTelemetry(ctx, offList, flags, previous?.telemetry)
+  if (!flags.yes && !(await confirm(ctx, tr(ctx, 'Установить?', 'Install?'), true))) return 1
+  const recipe = telemetry === 'off' ? withOptOut(original, offList) : original
+  const actions = recipe === original ? planned : await buildPlan(ctx, recipe, agents, scope, root)
   const result = await install(ctx, { recipe, entryKey: key, entryUrl: b.entry.url, actions, agents, scope, root, force: Boolean(flags.force), yes: Boolean(flags.yes), previous })
   const now = ctx.now().toISOString()
   const github = recipe.source.kind === 'github' ? recipe.source : null
@@ -72,7 +79,8 @@ export const runAdd: Command = async (ctx, args, flags) => {
     scope,
     agents: [...new Set([...(previous?.agents ?? []), ...result.touched])],
     items: mergeItems(previous?.items ?? [], result.items),
-    vars: recipeVars(recipe),
+    vars: recipeVars(original),
+    ...(telemetry ? { telemetry } : previous?.telemetry ? { telemetry: previous.telemetry } : {}),
     installedAt: previous?.installedAt ?? now,
     updatedAt: now,
     cliVersion: VERSION,

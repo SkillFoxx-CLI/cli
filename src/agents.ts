@@ -14,6 +14,11 @@ export type AgentDef = {
   title: string
   mcp: Record<Scope, McpSpot>
   skills: Record<Scope, string | null>
+  /**
+   * Прежняя папка скиллов, куда писали ранние версии CLI. Туда больше не пишем, но элементы lock с этим
+   * путем по-прежнему удаляются и обновляются (contain.ts, lockItemTarget).
+   */
+  legacySkills?: Partial<Record<Scope, string>>
   detect: { paths: string[]; bins: string[]; vscodeExt?: string }
 }
 
@@ -27,23 +32,28 @@ const json = (file: string, key = 'mcpServers'): McpSpot => ({ file, format: 'js
  * Hermes Agent (сверка с NousResearch/hermes-agent 30.09.2026): конфига MCP в проекте нет, только
  * {hermes}/config.yaml. Скиллы проекта он читает из .agents/skills и .hermes/skills, но только после
  * hermes skills trust; CLI кладет их в общую .agents/skills, чтобы Hermes не видел два экземпляра.
+ *
+ * Сверка 30.09.2026 по документации вендоров: Codex читает пользовательские скиллы из $HOME/.agents/skills
+ * ({codex}/skills устарел и читается только для совместимости, CLI до 0.4 писал туда, отсюда legacySkills);
+ * Coddy в проекте читает только .coddy/skills; SourceCraft Code Assistant .codeassistant/skills и
+ * ~/.codeassistant/skills; Zed пользовательские скиллы из ~/.agents/skills (zed.dev/docs/ai/skills).
  */
 export const AGENTS: AgentDef[] = [
   { id: 'claude-code', title: 'Claude Code', mcp: { project: json('.mcp.json'), global: json('~/.claude.json') }, skills: { project: '.claude/skills', global: '{claude}/skills' }, detect: { paths: ['~/.claude', '~/.claude.json'], bins: ['claude'] } },
   { id: 'cursor', title: 'Cursor', mcp: { project: json('.cursor/mcp.json'), global: json('~/.cursor/mcp.json') }, skills: { project: '.agents/skills', global: '~/.cursor/skills' }, detect: { paths: ['~/.cursor'], bins: ['cursor-agent'] } },
   { id: 'vscode', title: 'VS Code', mcp: { project: { file: '.vscode/mcp.json', format: 'jsonc', key: 'servers' }, global: { file: '{vscode}/mcp.json', format: 'jsonc', key: 'servers' } }, skills: { project: '.github/skills', global: '~/.copilot/skills' }, detect: { paths: [], bins: ['code'], vscodeExt: 'github.copilot-chat' } },
-  { id: 'codex', title: 'Codex CLI', mcp: { project: { file: '.codex/config.toml', format: 'toml', key: 'mcp_servers' }, global: { file: '{codex}/config.toml', format: 'toml', key: 'mcp_servers' } }, skills: { project: '.agents/skills', global: '{codex}/skills' }, detect: { paths: ['~/.codex'], bins: ['codex'] } },
+  { id: 'codex', title: 'Codex CLI', mcp: { project: { file: '.codex/config.toml', format: 'toml', key: 'mcp_servers' }, global: { file: '{codex}/config.toml', format: 'toml', key: 'mcp_servers' } }, skills: { project: '.agents/skills', global: '~/.agents/skills' }, legacySkills: { global: '{codex}/skills' }, detect: { paths: ['~/.codex'], bins: ['codex'] } },
   { id: 'gemini-cli', title: 'Gemini CLI', mcp: { project: json('.gemini/settings.json'), global: json('~/.gemini/settings.json') }, skills: { project: '.agents/skills', global: '~/.gemini/skills' }, detect: { paths: ['~/.gemini'], bins: ['gemini'] } },
   { id: 'devin', title: 'Devin Desktop', mcp: { project: json('.devin/mcp_config.json'), global: { ...json('~/.config/devin/mcp_config.json')!, legacyFile: '~/.codeium/windsurf/mcp_config.json' } }, skills: { project: '.devin/skills', global: '~/.config/devin/skills' }, detect: { paths: ['~/.config/devin', '~/.codeium/windsurf'], bins: [] } },
   { id: 'cline', title: 'Cline', mcp: { project: null, global: json('{vscode}/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json') }, skills: { project: '.cline/skills', global: '~/.cline/skills' }, detect: { paths: ['~/.cline'], bins: ['cline'], vscodeExt: 'saoudrizwan.claude-dev' } },
   { id: 'zoo-code', title: 'Zoo Code', mcp: { project: json('.roo/mcp.json'), global: null }, skills: { project: '.roo/skills', global: '~/.roo/skills' }, detect: { paths: ['~/.roo'], bins: [], vscodeExt: 'zoocodeorganization.zoo-code' } },
   { id: 'opencode', title: 'OpenCode', mcp: { project: json('opencode.json', 'mcp'), global: json('~/.config/opencode/opencode.json', 'mcp') }, skills: { project: '.agents/skills', global: '~/.config/opencode/skills' }, detect: { paths: ['~/.config/opencode'], bins: ['opencode'] } },
-  { id: 'zed', title: 'Zed', mcp: { project: { file: '.zed/settings.json', format: 'jsonc', key: 'context_servers' }, global: { file: '~/.config/zed/settings.json', format: 'jsonc', key: 'context_servers' } }, skills: { project: '.agents/skills', global: null }, detect: { paths: ['~/.config/zed'], bins: ['zed'] } },
+  { id: 'zed', title: 'Zed', mcp: { project: { file: '.zed/settings.json', format: 'jsonc', key: 'context_servers' }, global: { file: '~/.config/zed/settings.json', format: 'jsonc', key: 'context_servers' } }, skills: { project: '.agents/skills', global: '~/.agents/skills' }, detect: { paths: ['~/.config/zed'], bins: ['zed'] } },
   { id: 'goose', title: 'Goose', mcp: { project: null, global: { file: '~/.config/goose/config.yaml', format: 'yaml', key: 'extensions' } }, skills: { project: '.agents/skills', global: '~/.agents/skills' }, detect: { paths: ['~/.config/goose'], bins: ['goose'] } },
   { id: 'amp', title: 'Amp', mcp: { project: json('.amp/settings.json', 'amp.mcpServers'), global: json('~/.config/amp/settings.json', 'amp.mcpServers') }, skills: { project: '.agents/skills', global: '~/.agents/skills' }, detect: { paths: ['~/.config/amp'], bins: ['amp'] } },
-  { id: 'sourcecraft', title: 'SourceCraft Code Assistant', mcp: { project: json('.codeassistant/mcp.json'), global: null }, skills: { project: null, global: null }, detect: { paths: [], bins: [], vscodeExt: 'yandex-cloud.sourcecraft-code-assist' } },
+  { id: 'sourcecraft', title: 'SourceCraft Code Assistant', mcp: { project: json('.codeassistant/mcp.json'), global: null }, skills: { project: '.codeassistant/skills', global: '~/.codeassistant/skills' }, detect: { paths: [], bins: [], vscodeExt: 'yandex-cloud.sourcecraft-code-assist' } },
   { id: 'hermes', title: 'Hermes Agent', mcp: { project: null, global: { file: '{hermes}/config.yaml', format: 'yaml-1.1', key: 'mcp_servers' } }, skills: { project: '.agents/skills', global: '{hermes}/skills' }, detect: { paths: ['{hermes}'], bins: ['hermes'] } },
-  { id: 'coddy', title: 'Coddy', mcp: { project: null, global: null }, skills: { project: '.agents/skills', global: '~/.agents/skills' }, detect: { paths: ['~/.coddy'], bins: ['coddy'] } },
+  { id: 'coddy', title: 'Coddy', mcp: { project: null, global: null }, skills: { project: '.coddy/skills', global: '~/.agents/skills' }, detect: { paths: ['~/.coddy'], bins: ['coddy'] } },
 ]
 
 export const agentDef = (id: AgentId): AgentDef => AGENTS.find((a) => a.id === id)!
@@ -146,6 +156,13 @@ export const mcpTarget = async (ctx: Ctx, def: AgentDef, scope: Scope, root: str
 
 export const skillsDir = (ctx: Ctx, def: AgentDef, scope: Scope, root: string): string | null => {
   const dir = def.skills[scope]
+  if (!dir) return null
+  return scope === 'project' ? path.join(root, dir) : expandGlobal(ctx, dir)
+}
+
+/** Прежняя папка скиллов агента в этой области (см. legacySkills) или null. */
+export const legacySkillsDir = (ctx: Ctx, def: AgentDef, scope: Scope, root: string): string | null => {
+  const dir = def.legacySkills?.[scope]
   if (!dir) return null
   return scope === 'project' ? path.join(root, dir) : expandGlobal(ctx, dir)
 }

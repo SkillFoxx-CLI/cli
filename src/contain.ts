@@ -1,7 +1,7 @@
 import { lstat, realpath } from 'node:fs/promises'
 import path from 'node:path'
 
-import { agentDef, expandGlobal, skillsDir, type Scope } from './agents'
+import { agentDef, expandGlobal, legacySkillsDir, skillsDir, type Scope } from './agents'
 import type { Ctx } from './context'
 import { fromLockPath, type LockItem } from './lock'
 import { SERVER_NAME } from './plan'
@@ -82,9 +82,10 @@ export const lockItemTarget = (ctx: Ctx, scope: Scope, root: string, item: LockI
     return mcpFiles(ctx, item.agent, scope, root).some((f) => path.resolve(f) === abs) ? abs : null
   }
   if (item.kind === 'skill') {
-    const parent = skillParent(ctx, item.agent, scope, root)
+    // Прежняя папка агента тоже годится: lock, записанный ранней версией CLI, должен удаляться и обновляться.
+    const parents = [skillParent(ctx, item.agent, scope, root), item.agent === '*' ? null : legacySkillsDir(ctx, agentDef(item.agent), scope, root)]
     const abs = path.resolve(fromLockPath(ctx, root, item.path))
-    return parent && path.dirname(abs) === path.resolve(parent) && SKILL_NAME.test(path.basename(abs)) ? abs : null
+    return parents.some((parent) => parent && path.dirname(abs) === path.resolve(parent)) && SKILL_NAME.test(path.basename(abs)) ? abs : null
   }
   return null
 }

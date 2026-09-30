@@ -11,7 +11,7 @@ import { CliError, DEFAULT_API, tr, type Ctx } from './context'
 import { clean } from './io'
 import { VERSION } from './version'
 
-export type Flags = { agent?: string; global?: boolean; project?: boolean; yes?: boolean; force?: boolean; dryRun?: boolean; json?: boolean }
+export type Flags = { agent?: string; global?: boolean; project?: boolean; yes?: boolean; force?: boolean; dryRun?: boolean; json?: boolean; allowTelemetry?: boolean }
 export type Command = (ctx: Ctx, args: string[], flags: Flags) => Promise<number>
 
 /** Команды регистрируются здесь; каждая задача плана добавляет свою строку. */
@@ -25,6 +25,7 @@ const OPTIONS = {
   force: { type: 'boolean' },
   'dry-run': { type: 'boolean' },
   json: { type: 'boolean' },
+  'allow-telemetry': { type: 'boolean' },
   lang: { type: 'string' },
   api: { type: 'string' },
   version: { type: 'boolean', short: 'v' },
@@ -60,6 +61,8 @@ const HELP_RU = `Использование: npx skillfoxx <команда> [п�
   --force       заменить то, что поставлено не SkillFoxx или изменено руками
   --dry-run     только показать план
   --json        вывод в JSON
+  --allow-telemetry  не отключать отправку данных автору инструмента (по умолчанию CLI предлагает
+                отключить ее, если автор называет переменную)
   --lang ru|en  язык вывода
 
 Телеметрия анонимная, отключается DO_NOT_TRACK=1. Подробнее: https://skillfoxx.ru/developers`
@@ -83,6 +86,8 @@ Options:
   --force       replace what SkillFoxx did not install or what was edited by hand
   --dry-run     print the plan only
   --json        JSON output
+  --allow-telemetry  keep the tool sending data to its author (by default the CLI offers to turn it
+                off when the author names a variable for that)
   --lang ru|en  output language
 
 Telemetry is anonymous, disable it with DO_NOT_TRACK=1. Details: https://skillfoxx.ru/developers`
@@ -116,6 +121,7 @@ export const main = async (argv: string[], ctx: Ctx): Promise<number> => {
       force: values.force,
       dryRun: values['dry-run'],
       json: values.json,
+      allowTelemetry: values['allow-telemetry'],
     }
     return await run(ctx, args, flags)
   } catch (error) {

@@ -1,6 +1,7 @@
 import { fetchRecipe } from '../api'
 import type { Command } from '../cli'
 import { Backup } from '../config-file'
+import { chooseTelemetry, disclosureLines, optOuts, withOptOut } from '../disclosures'
 import { CliError, tr } from '../context'
 import { gate, riskConsent } from '../gate'
 import { install, installEvents, itemKey } from '../install'
@@ -42,15 +43,22 @@ export const runUpdate: Command = async (ctx, args, flags) => {
         ctx.out(tr(ctx, `${t.key}: актуально`, `${t.key}: up to date`))
         continue
       }
-      const recipe = body!.recipe!
-      const github = recipe.source.kind === 'github' ? recipe.source : null
+      const original = body!.recipe!
+      const github = original.source.kind === 'github' ? original.source : null
       ctx.out(tr(ctx, `${t.key}: есть сверенная версия, коммит ${entry.commitSha?.slice(0, 7) ?? 'нет'} на ${github?.commitSha.slice(0, 7) ?? 'нет'}`, `${t.key}: a rechecked version is available, commit ${entry.commitSha?.slice(0, 7) ?? 'none'} to ${github?.commitSha.slice(0, 7) ?? 'none'}`))
       for (const w of g.warnings) ctx.err(w)
       await riskConsent(ctx, g, Boolean(flags.yes))
       if (!flags.yes && !(await confirm(ctx, tr(ctx, `Обновить ${t.key}?`, `Update ${t.key}?`), true))) continue
       // Область берется из места lock-файла, а не из записи: проектный lock не может заставить писать в
       // пользовательские конфиги (readLock к тому же отвергает запись с чужим scope).
-      const actions = await buildPlan(ctx, recipe, entry.agents, t.scope, t.root)
+      const planned = await buildPlan(ctx, original, entry.agents, t.scope, t.root)
+      // Выбор по телеметрии из lock повторяется молча; новый вопрос только если рецепт впервые назвал
+      // переменную отключения, и тогда раскрытие печатается перед вопросом.
+      const offList = optOuts(original, planned)
+      if (offList.length && !entry.telemetry && !flags.allowTelemetry) for (const line of disclosureLines(ctx, original)) ctx.out(line)
+      const telemetry = await chooseTelemetry(ctx, offList, flags, entry.telemetry)
+      const recipe = telemetry === 'off' ? withOptOut(original, offList) : original
+      const actions = recipe === original ? planned : await buildPlan(ctx, recipe, entry.agents, t.scope, t.root)
       const result = await install(ctx, { recipe, entryKey: t.key, entryUrl: body!.entry.url, actions, agents: entry.agents, scope: t.scope, root: t.root, force: Boolean(flags.force), yes: Boolean(flags.yes), previous: entry })
       const fresh = new Set(result.items.map(itemKey))
       const stale = entry.items.filter((i) => !fresh.has(itemKey(i)) && (i.kind === 'mcp' || i.kind === 'skill'))
@@ -64,7 +72,8 @@ export const runUpdate: Command = async (ctx, args, flags) => {
         risk: body!.risk.level ?? null,
         agents: [...result.touched],
         items: result.items,
-        vars: recipeVars(recipe),
+        vars: recipeVars(original),
+        ...(telemetry ? { telemetry } : {}),
         updatedAt: ctx.now().toISOString(),
         cliVersion: VERSION,
       }
