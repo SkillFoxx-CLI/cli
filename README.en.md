@@ -18,12 +18,15 @@ Requires Node.js 18.18 or newer.
 | `list` | shows what is installed |
 | `doctor` | checks installs: edited by hand, outdated, removed from the catalog, environment variables not set |
 | `search <query>` | searches the catalog |
+| `connect <agent>` | connects Claude Code, Codex, opencode or Cursor to SkillFoxx API: checks the key on the gateway and writes the address into the agent settings. The key comes from `SKILLFOXX_API_KEY` or a hidden prompt |
 
 Options: `--agent claude-code,cursor` (or `all`), `--project`, `--global`, `-y`/`--yes`, `--force`, `--dry-run`, `--json`, `--lang ru|en`.
 
 ## Agents
 
-Claude Code, Cursor, VS Code, Codex, Gemini CLI, Devin, Cline, Zoo Code, OpenCode, Zed, Goose, Amp, SourceCraft, Coddy.
+Claude Code, Cursor, VS Code, Codex, Gemini CLI, Devin, Cline, Zoo Code, OpenCode, Zed, Goose, Amp, Hermes Agent, SourceCraft, Coddy.
+
+Hermes Agent: MCP servers go to `config.yaml` in the Hermes folder (`~/.hermes`, `%LOCALAPPDATA%\hermes` on Windows, or `HERMES_HOME`), so install them with `--global`. User skills land in `skills` in the same folder. Project skills live in `.agents/skills`, and Hermes loads them only after `hermes skills trust` in the project root.
 
 Without `--agent` the CLI picks the agent it runs inside, otherwise every agent found on the machine.
 

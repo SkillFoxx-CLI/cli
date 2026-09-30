@@ -13,9 +13,11 @@ export { SIGNATURE_HEADER, keyId, verifyBody } from './recipe/sign'
 export { TRUSTED_RECIPE_KEYS } from './recipe/keys'
 export type { McpComponent, Resolved }
 
-/** Агенты CLI: все агенты карточек плюс Goose и Amp, у которых нет вкладки на карточке. */
-export const AGENT_IDS = [...SITE_AGENT_IDS, 'goose', 'amp'] as const
-export type AgentId = SiteAgentId | 'goose' | 'amp'
+/** Агенты CLI: все агенты карточек плюс Goose, Amp и Hermes Agent, у которых нет вкладки на карточке. */
+export const AGENT_IDS = [...SITE_AGENT_IDS, 'goose', 'amp', 'hermes'] as const
+export type AgentId = SiteAgentId | 'goose' | 'amp' | 'hermes'
+type CliOnlyAgent = 'codex' | 'goose' | 'amp' | 'hermes'
+const isCliOnly = (agent: AgentId): agent is CliOnlyAgent => agent === 'codex' || agent === 'goose' || agent === 'amp' || agent === 'hermes'
 
 type Resolve = (name: string) => string
 const TEMPLATE = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g
@@ -36,7 +38,9 @@ export const resolveWith = (c: McpComponent, resolve: Resolve): Resolved => {
 const optional = (key: string, table: Record<string, string>) => (Object.keys(table).length ? { [key]: table } : {})
 
 // Codex: TOML-таблица [mcp_servers.<имя>] (этап 2 печатает ее строкой). Goose: YAML extensions.<имя>. Amp: JSON amp.mcpServers.
-const cliOnly = (agent: 'codex' | 'goose' | 'amp', r: Resolved): Record<string, unknown> | null => {
+// Hermes Agent: YAML mcp_servers.<имя> в config.yaml, у удаленного сервера url и headers, для SSE еще transport: sse
+// (tools/mcp_tool_transport.py в NousResearch/hermes-agent).
+const cliOnly = (agent: CliOnlyAgent, r: Resolved): Record<string, unknown> | null => {
   if (agent === 'codex') {
     if (r.kind === 'stdio') return { command: r.command, args: r.args, ...optional('env', r.env) }
     return r.sse ? null : { url: r.url, ...optional('http_headers', r.headers) }
@@ -45,13 +49,17 @@ const cliOnly = (agent: 'codex' | 'goose' | 'amp', r: Resolved): Record<string, 
     if (r.kind === 'stdio') return { name: r.name, type: 'stdio', cmd: r.command, args: r.args, ...optional('envs', r.env), enabled: true, timeout: 300 }
     return r.sse ? null : { name: r.name, type: 'streamable_http', uri: r.url, ...optional('headers', r.headers), enabled: true, timeout: 300 }
   }
+  if (agent === 'hermes') {
+    if (r.kind === 'stdio') return { command: r.command, args: r.args, ...optional('env', r.env) }
+    return { url: r.url, ...(r.sse ? { transport: 'sse' } : {}), ...optional('headers', r.headers) }
+  }
   return r.kind === 'stdio' ? { command: r.command, args: r.args, ...optional('env', r.env) } : { url: r.url, ...optional('headers', r.headers) }
 }
 
 /** Объект сервера MCP в формате агента; null: сочетание агента и транспорта не подтверждено. */
 export const serverEntry = (agent: AgentId, c: McpComponent, resolve: Resolve): Record<string, unknown> | null => {
   const r = resolveWith(c, resolve)
-  if (agent === 'codex' || agent === 'goose' || agent === 'amp') return cliOnly(agent, r)
+  if (isCliOnly(agent)) return cliOnly(agent, r)
   const spec = agentById(agent)
   if (!spec?.mcp) return null
   const supported = r.kind === 'stdio' ? spec.mcp.stdio : r.sse ? spec.mcp.sse : spec.mcp.http
@@ -63,6 +71,7 @@ export const envReference = (agent: AgentId, name: string): string | null => {
   switch (agent) {
     case 'claude-code':
     case 'gemini-cli':
+    case 'hermes':
       return `\${${name}}`
     case 'cursor':
     case 'vscode':
@@ -75,6 +84,6 @@ export const envReference = (agent: AgentId, name: string): string | null => {
   }
 }
 
-/** Проектная папка скиллов агента: из реестра этапа 2, для Goose и Amp общая .agents/skills. */
+/** Проектная папка скиллов агента: из реестра этапа 2, для Goose, Amp и Hermes общая .agents/skills. */
 export const siteSkillsDir = (agent: AgentId): string | null =>
-  agent === 'goose' || agent === 'amp' ? '.agents/skills' : (agentById(agent)?.skillsDir ?? null)
+  agent === 'goose' || agent === 'amp' || agent === 'hermes' ? '.agents/skills' : (agentById(agent)?.skillsDir ?? null)

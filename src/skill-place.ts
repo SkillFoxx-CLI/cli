@@ -1,4 +1,4 @@
-import { cp, lstat, mkdir, readdir, readFile, readlink, rename, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, lstat, mkdir, readdir, readFile, realpath, rename, rm, symlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { agentDef, skillsDir, type Scope } from './agents'
@@ -30,11 +30,16 @@ export const outside = (ctx: Ctx, target: string, skipped = false): CliError =>
       : tr(ctx, `Путь ${clean(target)} через символическую ссылку ведет за пределы проекта или папки агента, запись остановлена.`, `${clean(target)} leads outside the project or the agent folder through a symbolic link, nothing was written.`),
   )
 
+/**
+ * Относительная ссылка строится между настоящими путями обеих папок: если папка агента сама ссылка
+ * (~/.hermes на другой диск), путь от ее имени увел бы ссылку мимо канонической копии.
+ */
 const linkOrCopy = async (ctx: Ctx, canonical: string, target: string): Promise<'symlink' | 'copy'> => {
   await mkdir(path.dirname(target), { recursive: true })
   if (ctx.platform !== 'win32') {
     try {
-      await symlink(path.relative(path.dirname(target), canonical), target, 'dir')
+      const [from, to] = await Promise.all([realpath(path.dirname(target)), realpath(canonical)])
+      await symlink(path.relative(from, to), target, 'dir')
       return 'symlink'
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'EPERM') throw error
@@ -101,7 +106,7 @@ export const placeSkill = async (ctx: Ctx, p: PlaceInput): Promise<PlaceResult> 
     }
     const existing = await lstatOrNull(target)
     if (existing) {
-      if (existing.isSymbolicLink() && path.resolve(dir, await readlink(target)) === canonical) {
+      if (existing.isSymbolicLink() && (await realpath(target).catch(() => null)) === (await realpath(canonical))) {
         linked.set(target, 'symlink')
         result.items.push({ kind: 'skill', agent, path: toLockPath(ctx, p.scope, p.root, target), link: 'symlink' })
         result.agents.push(agent)

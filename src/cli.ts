@@ -1,6 +1,7 @@
 import { parseArgs } from 'node:util'
 
 import { runAdd } from './commands/add'
+import { runConnect } from './commands/connect'
 import { runDoctor } from './commands/doctor'
 import { runList } from './commands/list'
 import { runRemove } from './commands/remove'
@@ -14,7 +15,7 @@ export type Flags = { agent?: string; global?: boolean; project?: boolean; yes?:
 export type Command = (ctx: Ctx, args: string[], flags: Flags) => Promise<number>
 
 /** Команды регистрируются здесь; каждая задача плана добавляет свою строку. */
-export const COMMANDS: Record<string, Command> = { add: runAdd, remove: runRemove, update: runUpdate, list: runList, doctor: runDoctor, search: runSearch }
+export const COMMANDS: Record<string, Command> = { add: runAdd, remove: runRemove, update: runUpdate, list: runList, doctor: runDoctor, search: runSearch, connect: runConnect }
 
 const OPTIONS = {
   agent: { type: 'string' },
@@ -49,9 +50,10 @@ const HELP_RU = `Использование: npx skillfoxx <команда> [п�
   list                  что установлено
   doctor                проверить установленное: изменено, устарело, снято
   search <запрос>       найти запись в каталоге
+  connect <агент>       подключить Claude Code, Codex, opencode или Cursor к SkillFoxx API
 
 Параметры:
-  --agent a,b   агенты (claude-code, cursor, vscode, codex, gemini-cli, devin, cline, zoo-code, opencode, zed, goose, amp, sourcecraft, coddy или all)
+  --agent a,b   агенты (claude-code, cursor, vscode, codex, gemini-cli, devin, cline, zoo-code, opencode, zed, goose, amp, hermes, sourcecraft, coddy или all)
   --project     в проект (по умолчанию внутри проекта)
   --global      для пользователя
   -y, --yes     без вопросов
@@ -71,9 +73,10 @@ Commands:
   list                  show what is installed
   doctor                check installs: modified, outdated, removed
   search <query>        find an entry in the catalog
+  connect <agent>       connect Claude Code, Codex, opencode or Cursor to SkillFoxx API
 
 Options:
-  --agent a,b   agents (claude-code, cursor, vscode, codex, gemini-cli, devin, cline, zoo-code, opencode, zed, goose, amp, sourcecraft, coddy or all)
+  --agent a,b   agents (claude-code, cursor, vscode, codex, gemini-cli, devin, cline, zoo-code, opencode, zed, goose, amp, hermes, sourcecraft, coddy or all)
   --project     into the project (default inside a project)
   --global      for the user
   -y, --yes     no questions

@@ -76,7 +76,7 @@ export const rootFor = async (ctx: Ctx, scope: Scope): Promise<string> => (scope
 
 export const lockFileFor = (ctx: Ctx, scope: Scope, root: string): string => (scope === 'project' ? path.join(root, LOCK_FILE) : path.join(ctx.sfHome, 'lock.json'))
 
-const FORMATS: readonly string[] = ['json', 'jsonc', 'toml', 'yaml']
+const FORMATS: readonly string[] = ['json', 'jsonc', 'toml', 'yaml', 'yaml-1.1']
 const LINKS: readonly string[] = ['canonical', 'symlink', 'copy']
 const ENTRY_KEY = /^([a-z]+)\/([A-Za-z0-9][A-Za-z0-9._-]{0,150})$/
 const VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/

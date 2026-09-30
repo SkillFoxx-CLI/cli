@@ -18,12 +18,15 @@ npx skillfoxx add mcp/vv-mcp-server
 | `list` | показывает установленное |
 | `doctor` | проверяет: изменено руками, устарело, снято из каталога, не заданы переменные окружения |
 | `search <запрос>` | ищет в каталоге |
+| `connect <агент>` | подключает Claude Code, Codex, opencode или Cursor к SkillFoxx API: проверяет ключ на шлюзе и прописывает адрес в настройки агента. Ключ берется из `SKILLFOXX_API_KEY` или спрашивается скрыто |
 
 Параметры: `--agent claude-code,cursor` (или `all`), `--project`, `--global`, `-y`/`--yes`, `--force`, `--dry-run`, `--json`, `--lang ru|en`.
 
 ## Агенты
 
-Claude Code, Cursor, VS Code, Codex, Gemini CLI, Devin, Cline, Zoo Code, OpenCode, Zed, Goose, Amp, SourceCraft, Coddy.
+Claude Code, Cursor, VS Code, Codex, Gemini CLI, Devin, Cline, Zoo Code, OpenCode, Zed, Goose, Amp, Hermes Agent, SourceCraft, Coddy.
+
+Hermes Agent: MCP-серверы пишутся в `config.yaml` в папке Hermes (`~/.hermes`, на Windows `%LOCALAPPDATA%\hermes`, либо `HERMES_HOME`; если выбран профиль через `hermes profile use`, то папка этого профиля), поэтому ставятся с `--global`. Скиллы для пользователя попадают в `skills` той же папки. Скиллы проекта лежат в `.agents/skills`, и Hermes загружает их только после `hermes skills trust` в корне проекта.
 
 Без `--agent` CLI берет агента, внутри которого запущен, иначе все найденные на машине.
 

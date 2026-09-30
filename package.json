@@ -1,6 +1,6 @@
 {
   "name": "skillfoxx",
-  "version": "0.1.3",
+  "version": "0.3.0",
   "description": "Установка скиллов, MCP-серверов и CLI из каталога SkillFoxx в Claude Code, Cursor, Codex и другие агенты",
   "type": "module",
   "bin": {

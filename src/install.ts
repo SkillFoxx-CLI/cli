@@ -92,6 +92,9 @@ export const install = async (ctx: Ctx, p: InstallInput): Promise<InstallResult>
         res.items.push(...placed.items)
         res.notes.push(...placed.warnings)
         placed.agents.forEach((a) => res.touched.add(a))
+        if (p.scope === 'project' && placed.agents.includes('hermes')) {
+          res.notes.push(tr(ctx, 'Hermes Agent: скиллы проекта загружаются только в доверенном проекте. Выполните в корне проекта: hermes skills trust', 'Hermes Agent: project skills load only in a trusted project. Run in the project root: hermes skills trust'))
+        }
       } else if (action.type === 'mcp') {
         await installMcp(ctx, p, action, values, backup, prev, res)
       } else if (action.type === 'plugin') {
@@ -161,6 +164,7 @@ const installMcp = async (ctx: Ctx, p: InstallInput, action: Extract<Action, { t
   res.touched.add(action.agent)
   if (p.scope === 'project' && action.agent === 'codex') res.notes.push(tr(ctx, 'Codex читает .codex/config.toml только в доверенных проектах.', 'Codex reads .codex/config.toml only in trusted projects.'))
   if (p.scope === 'project' && action.agent === 'amp') res.notes.push(tr(ctx, 'Amp: подтвердите сервер командой amp mcp approve.', 'Amp: approve the server with amp mcp approve.'))
+  if (action.agent === 'hermes') res.notes.push(tr(ctx, 'Hermes Agent: сервер появится в новой сессии или после команды /reload-mcp.', 'Hermes Agent: the server shows up in a new session or after /reload-mcp.'))
   if (r.references.length) res.notes.push(tr(ctx, `Задайте переменные окружения перед запуском агента: ${r.references.join(', ')}`, `Set environment variables before starting the agent: ${r.references.join(', ')}`))
   for (const name of r.references) if (r.component.env.find((e) => e.name === name)?.required) res.requiredEnvRefs.add(name)
   if (r.secrets.length) res.notes.push(tr(ctx, `${title}: значения секретов записаны в ${file}.`, `${title}: secret values are stored in ${file}.`))

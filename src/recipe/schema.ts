@@ -200,13 +200,20 @@ export const parseRecipe = (input: unknown): { ok: true; recipe: InstallRecipe }
 // БД и только что собранный zod, может отличаться порядком полей без единого смыслового отличия.
 export const sortKeys = (value: unknown): unknown => {
   if (Array.isArray(value)) return value.map(sortKeys)
+  // Дата из YAML или TOML остается датой: JSON.stringify запишет ее через toJSON, а не пустым объектом.
+  if (value instanceof Date) return value
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.keys(value as object).sort().map((key) => [key, sortKeys((value as Record<string, unknown>)[key])]))
   }
   return value
 }
 
+// Целое из YAML, прочитанное как BigInt (intAsBigInt): в пределах точности это то же число, что и в JSON,
+// за пределами строка с суффиксом n, чтобы большие числа сравнивались без потери разрядов.
+const bigintAsJSON = (_key: string, value: unknown): unknown =>
+  typeof value === 'bigint' ? (Number.isSafeInteger(Number(value)) ? Number(value) : `${value}n`) : value
+
 /** Каноническая строка для сравнения значений независимо от порядка ключей исходного объекта. */
-export const canonicalJSON = (value: unknown): string => JSON.stringify(sortKeys(value))
+export const canonicalJSON = (value: unknown): string => JSON.stringify(sortKeys(value), bigintAsJSON)
 
 export const canonicalHash = (recipe: InstallRecipe): string => `sha256:${createHash('sha256').update(canonicalJSON(recipe)).digest('hex')}`

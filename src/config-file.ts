@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { findNodeAtLocation, parse as parseJsonc, parseTree, type Node, type ParseError } from 'jsonc-parser'
 import { parse as parseToml } from 'smol-toml'
-import { parseDocument } from 'yaml'
+import { isMap, isScalar, parseDocument, YAMLMap, type Document, type ScalarTag, type Tags } from 'yaml'
 
 import type { Format } from './agents'
 import type { Ctx } from './context'
@@ -21,6 +21,40 @@ export class ConfigEditError extends Error {
 
 const lineOf = (text: string, offset: number) => text.slice(0, offset).split('\n').length
 
+const STR_TAG = 'tag:yaml.org,2002:str'
+const BOM = '\ufeff'
+
+/**
+ * Скаляр из файла пишется обратно ровно как был (on, 0755, 1:20, 0x1F), а не пересобирается из значения:
+ * библиотека печатает 1:20 как 01:20, а это уже строка для PyYAML. Новые узлы (без source) и строки
+ * печатаются как обычно.
+ */
+const verbatimTags = (tags: Tags): Tags =>
+  tags.map((tag) => {
+    if (typeof tag === 'string' || tag.collection || tag.tag === STR_TAG || !tag.stringify) return tag
+    const own = tag.stringify
+    const verbatim: ScalarTag = { ...tag, stringify: (item, ctx, onComment, onChompKeep) => (item.type === 'PLAIN' && item.source ? item.source : own(item, ctx, onComment, onChompKeep)) }
+    return verbatim
+  })
+
+/**
+ * YAML агента. Hermes читает config.yaml через PyYAML, а это YAML 1.1: yes, no, on, off там логические,
+ * 0755 восьмеричное, 1:20 шестидесятеричное. Для него файл разбирается и пишется по 1.1, тогда строка
+ * "yes" в env попадет в файл в кавычках. Целые читаются как BigInt, чтобы длинные числа не теряли разряды.
+ */
+const parseYaml = (format: Format, text: string): Document =>
+  parseDocument(text, { ...(format === 'yaml-1.1' ? { version: '1.1' as const } : {}), intAsBigInt: true, customTags: verbatimTags })
+
+// Целые в пределах точности снова обычные числа: сравнение с записанной конфигурацией идет по значению.
+const safeNumbers = (value: unknown): unknown => {
+  if (typeof value === 'bigint') return Number.isSafeInteger(Number(value)) ? Number(value) : value
+  if (Array.isArray(value)) return value.map(safeNumbers)
+  if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, safeNumbers(v)]))
+  }
+  return value
+}
+
 export const parseConfig = (format: Format, text: string): { ok: true; data: unknown } | { ok: false; error: string } => {
   try {
     if (format === 'json') return { ok: true, data: text.trim() ? JSON.parse(text) : {} }
@@ -30,9 +64,9 @@ export const parseConfig = (format: Format, text: string): { ok: true; data: unk
       return errors.length ? { ok: false, error: `строка ${lineOf(text, errors[0].offset)}` } : { ok: true, data: data ?? {} }
     }
     if (format === 'toml') return { ok: true, data: parseToml(text) }
-    const doc = parseDocument(text)
+    const doc = parseYaml(format, text)
     if (doc.errors.length) return { ok: false, error: doc.errors[0].message }
-    return { ok: true, data: doc.toJS() ?? {} }
+    return { ok: true, data: safeNumbers(doc.toJS() ?? {}) }
   } catch (error) {
     return { ok: false, error: (error as Error).message.split('\n')[0] }
   }
@@ -212,25 +246,55 @@ const editToml = (text: string, key: string[], value: unknown) => {
   return [...lines.slice(0, start), ...block, ...lines.slice(blockEnd)].join(eol)
 }
 
-const editYaml = (text: string, key: string[], value: unknown) => {
-  const doc = parseDocument(text)
-  if (value === undefined) doc.deleteIn(key)
-  else doc.setIn(key, doc.createNode(value))
-  return String(doc)
+/**
+ * Правка YAML через дерево документа (библиотека yaml): комментарии и соседние ключи остаются на месте.
+ * Пустой контейнер на пути (mcp_servers: без значения, ~ или {}) становится блочной таблицей: иначе
+ * setIn отказывает, а пустой {} превратил бы весь новый сервер в одну строку. Длинные строки не
+ * переносятся, окончания строк CRLF и метка BOM остаются, если были в файле.
+ */
+const editYaml = (format: Format, text: string, key: string[], value: unknown) => {
+  const doc = parseYaml(format, text)
+  const print = () => {
+    let out = doc.toString({ lineWidth: 0 })
+    if (text.includes('\r\n')) out = out.replace(/\r?\n/g, '\r\n')
+    return text.startsWith(BOM) && !out.startsWith(BOM) ? BOM + out : out
+  }
+  if (value === undefined) {
+    if (doc.getIn(key, true) === undefined) return text
+    doc.deleteIn(key)
+    return print()
+  }
+  // Недостающие таблицы на пути создаются явно: сам setIn в схеме 1.1 создал бы их как !!omap.
+  if (doc.contents === null) doc.contents = new YAMLMap()
+  for (let i = 1; i < key.length; i++) {
+    const node = doc.getIn(key.slice(0, i), true)
+    if (node === undefined || (isScalar(node) && (node.value === null || node.value === undefined))) doc.setIn(key.slice(0, i), new YAMLMap())
+    else if (isMap(node) && node.flow && !node.items.length) node.flow = false
+  }
+  try {
+    doc.setIn(key, doc.createNode(value))
+  } catch {
+    throw new ConfigEditError(`на пути ${key.join(' > ')} не таблица, правьте вручную`, `${key.join(' > ')} is not a mapping, edit it by hand`)
+  }
+  return print()
 }
 
 export const editConfig = (format: Format, text: string, key: string[], value: unknown): string =>
-  format === 'toml' ? editToml(text, key, value) : format === 'yaml' ? editYaml(text, key, value) : editJson(text, key, value)
+  format === 'toml' ? editToml(text, key, value) : format === 'yaml' || format === 'yaml-1.1' ? editYaml(format, text, key, value) : editJson(text, key, value)
 
 const getIn = (data: unknown, key: string[]): unknown => key.reduce<unknown>((node, k) => (isTable(node) ? node[k] : undefined), data)
 
 // Копия без ключа и без пустых таблиц по пути к нему: так «до» и «после» сравнимы, даже если контейнер
 // mcpServers создан этой правкой.
 const withoutKey = (data: unknown, key: string[]): unknown => {
-  const copy = JSON.parse(JSON.stringify(data ?? {})) as Record<string, unknown>
+  // Круг через canonicalJSON, а не JSON.stringify: в YAML бывают BigInt, их обычный JSON не пишет.
+  const copy = JSON.parse(canonicalJSON(data ?? {})) as Record<string, unknown>
   const trail: Record<string, unknown>[] = [copy]
   for (const k of key.slice(0, -1)) {
-    const next = trail[trail.length - 1][k]
+    const parent = trail[trail.length - 1]
+    // Ключ-контейнер без значения (mcp_servers: в YAML) равен пустой таблице: правка его заполняет.
+    if (parent[k] === null) parent[k] = {}
+    const next = parent[k]
     if (!isTable(next)) return copy
     trail.push(next)
   }
