@@ -1,6 +1,6 @@
 #!/bin/bash
 # packages/cli/scripts/smoke.sh: сборка и запуск собранного CLI под Node 18 и текущей версией,
-# состав пакета для npm. Запуск: bash scripts/smoke.sh
+# состав пакета для npm. Запуск: bash scripts/smoke.sh 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 node build.mjs
